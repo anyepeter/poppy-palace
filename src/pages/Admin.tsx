@@ -25,71 +25,76 @@ export default function Admin() {
     setIsLoading(false);
   }, []);
 
-  // Load dogs and content from localStorage (always call this hook)
+  // Load dogs and content from API
   useEffect(() => {
-    const savedDogs = localStorage.getItem('poppy-paws-dogs');
-    if (savedDogs) {
-      const parsedDogs = JSON.parse(savedDogs);
-      // Migration: Convert old format (image: string) to new format (images: string[])
-      const migratedDogs = parsedDogs.map((dog: any) => {
-        if (dog.image && !dog.images) {
-          return { ...dog, images: [dog.image], image: undefined };
+    if (!isAuthenticated) return;
+    
+    const loadData = async () => {
+      try {
+        // Load dogs
+        const dogsResponse = await fetch('/api/dogs');
+        if (dogsResponse.ok) {
+          const dogsData = await dogsResponse.json();
+          const formattedDogs = dogsData.map((dog: any) => ({
+            ...dog,
+            isSponsored: dog.is_sponsored
+          }));
+          setDogs(formattedDogs);
         }
-        if (!dog.images) {
-          return { ...dog, images: [] };
-        }
-        return dog;
-      });
-      setDogs(migratedDogs);
-      // Save migrated data back to localStorage
-      localStorage.setItem('poppy-paws-dogs', JSON.stringify(migratedDogs));
-    } else {
-      const defaultDogs: Dog[] = [
-        {
-          id: 1,
-          name: "Luna",
-          breed: "Golden Retriever",
-          age: "2 years",
-          size: "Large",
-          personality: ["Friendly", "Energetic", "Loyal"],
-          description: "Luna is a beautiful golden retriever who loves playing fetch and swimming. She's great with kids and other dogs!",
-          images: ["/src/assets/dogs-grid.jpg"],
-          location: "San Francisco, CA",
-          isSponsored: true
-        },
-        {
-          id: 2,
-          name: "Max",
-          breed: "Corgi",
-          age: "3 years",
-          size: "Medium",
-          personality: ["Playful", "Smart", "Gentle"],
-          description: "Max is an adorable corgi with the sweetest personality. He loves cuddles and is perfect for apartment living.",
-          images: ["/src/assets/dogs-grid.jpg"],
-          location: "Los Angeles, CA",
-          isSponsored: false
-        }
-      ];
-      setDogs(defaultDogs);
-      localStorage.setItem('poppy-paws-dogs', JSON.stringify(defaultDogs));
-    }
 
-    const savedContent = localStorage.getItem('poppy-paws-content');
-    if (savedContent) {
-      setSiteContent(JSON.parse(savedContent));
-    } else {
-      localStorage.setItem('poppy-paws-content', JSON.stringify(defaultSiteContent));
-    }
-  }, []);
+        // Load content
+        const contentResponse = await fetch('/api/content');
+        if (contentResponse.ok) {
+          const contentData = await contentResponse.json();
+          if (Object.keys(contentData).length > 0) {
+            setSiteContent(contentData);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load data from server.",
+          variant: "destructive"
+        });
+      }
+    };
 
-  const saveDogs = (updatedDogs: Dog[]) => {
+    loadData();
+  }, [isAuthenticated, toast]);
+
+  const saveDogs = async (updatedDogs: Dog[]) => {
     setDogs(updatedDogs);
-    localStorage.setItem('poppy-paws-dogs', JSON.stringify(updatedDogs));
+    // API calls are handled in DogsManager component
   };
 
-  const saveContent = (updatedContent: SiteContent) => {
-    setSiteContent(updatedContent);
-    localStorage.setItem('poppy-paws-content', JSON.stringify(updatedContent));
+  const saveContent = async (updatedContent: SiteContent) => {
+    try {
+      const response = await fetch('/api/content', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedContent),
+      });
+
+      if (response.ok) {
+        setSiteContent(updatedContent);
+        toast({
+          title: "Success",
+          description: "Content updated successfully.",
+        });
+      } else {
+        throw new Error('Failed to save content');
+      }
+    } catch (error) {
+      console.error('Failed to save content:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save content.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleLogin = () => {

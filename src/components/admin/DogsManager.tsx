@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Dog } from '@/types/siteContent';
+import { dogApi } from '@/utils/api';
 
 interface DogsManagerProps {
   dogs: Dog[];
@@ -117,7 +118,7 @@ export default function DogsManager({ dogs, onSave }: DogsManagerProps) {
     setPersonalityInput(dog.personality.join(', '));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.breed || !formData.age) {
       toast({
         title: "Error",
@@ -146,37 +147,56 @@ export default function DogsManager({ dogs, onSave }: DogsManagerProps) {
       personality: personalityArray,
     };
 
-    let updatedDogs;
-    if (isCreating) {
-      updatedDogs = [...dogs, updatedDog];
+    try {
+      if (isCreating) {
+        await dogApi.create(updatedDog);
+        toast({
+          title: "Success",
+          description: `${updatedDog.name} has been added successfully!`,
+        });
+      } else {
+        await dogApi.update(updatedDog.id, updatedDog);
+        toast({
+          title: "Success",
+          description: `${updatedDog.name} has been updated successfully!`,
+        });
+      }
+
+      // Refresh the dogs list
+      const updatedDogs = await dogApi.getAll();
+      onSave(updatedDogs);
+      
+      setIsCreating(false);
+      setEditingDog(null);
+      setFormData(initialDogData);
+      setPersonalityInput('');
+    } catch (error) {
       toast({
-        title: "Success",
-        description: `${updatedDog.name} has been added successfully!`,
-      });
-    } else {
-      updatedDogs = dogs.map(dog => dog.id === updatedDog.id ? updatedDog : dog);
-      toast({
-        title: "Success",
-        description: `${updatedDog.name} has been updated successfully!`,
+        title: "Error",
+        description: "Failed to save dog. Please try again.",
+        variant: "destructive",
       });
     }
-
-    onSave(updatedDogs);
-    setIsCreating(false);
-    setEditingDog(null);
-    setFormData(initialDogData);
-    setPersonalityInput('');
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     const dogToDelete = dogs.find(dog => dog.id === id);
     if (window.confirm(`Are you sure you want to delete ${dogToDelete?.name}?`)) {
-      const updatedDogs = dogs.filter(dog => dog.id !== id);
-      onSave(updatedDogs);
-      toast({
-        title: "Success",
-        description: `${dogToDelete?.name} has been deleted.`,
-      });
+      try {
+        await dogApi.delete(id);
+        const updatedDogs = await dogApi.getAll();
+        onSave(updatedDogs);
+        toast({
+          title: "Success",
+          description: `${dogToDelete?.name} has been deleted.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete dog. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
